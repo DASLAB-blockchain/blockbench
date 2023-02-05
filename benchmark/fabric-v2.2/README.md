@@ -41,15 +41,15 @@ Launch one block service on port 8800 in the background, which provides the ledg
 Since __block-server__ is only contacted by the __Status_Thread__ of client drivers, a single one block service is enough. 
 ```
 # Still in services/
-node block-server.js ${CHANNEL_NAME} 8800 > block-server.log 2>&1 &
+node blockServer.js ${CHANNEL_NAME} 8800 > block-server.log 2>&1 &
 ```
 
 Launch two transaction services on port 8801 and 8802 respectively in the background, each listening for json requests and routes them to Fabric network. 
 `$MODE` is determined by individual benchmarks. In most cases, macro benchmarks opt for `MODE=open_loop` and micro benchmarks opt for `MODE=closed_loop`. 
 ```
 # Still in services/
-node txn-server.js ${CHANNEL_NAME} ${CC_NAME} ${MODE} 8801 > txn-server-8801.log 2>&1 &
-node txn-server.js ${CHANNEL_NAME} ${CC_NAME} ${MODE} 8802 > txn-server-8802.log 2>&1 &
+node txnServer.js ${CHANNEL_NAME} ${CC_NAME} ${MODE} 8801 > txn-server-8801.log 2>&1 &
+node txnServer.js ${CHANNEL_NAME} ${CC_NAME} ${MODE} 8802 > txn-server-8802.log 2>&1 &
 ```
 As __txn-servers__ are contacted by the __Client_Thread__ of client drivers, and there are multiple client threads, it is desirable to launch multiple __txn-servers__ to balance the workload. 
 
