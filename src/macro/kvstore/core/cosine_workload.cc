@@ -294,44 +294,44 @@ void generateKeysSkew()
 	fill_skew_put_scattered_optimized(no_of_puts, U1, U2, pput, pget, false, true);
 }
 
-int main(int argc, char* argv[])
-{
-	if(argc > 2)
-	{
-		fprintf(stderr, "Usage:<workload_type>, <N>, <#gets>, <#puts>, <max_U or U_1,U_2,p_put,p_get>\n");
-		// ./workload 0 1000000 100000 100000 10000000000
-		// ./workload 1 1000000 10000 10000 100000 100000000 0.3 0.1
-		N = atol(argv[2]);
-		no_of_gets = atol(argv[3]);
-		no_of_puts = atol(argv[4]);
-		if(strcmp(argv[1], "0") == 0)
-		{
-			max_U = atol(argv[5]);
-		}
-		else
-		{
-			U1 = atol(argv[5]);
-			U2 = atol(argv[6]);
-			pput = atof(argv[7]);
-			pget = atof(argv[8]);
-		}
-	}
-	if(argc <= 1 || strcmp(argv[1], "0") == 0)
-	{
-		printf("UNIFORM\n");
-		generateKeysUniform(true, false);
-		generateGetUniform(false);
-		generatePutUniform(false);
-		generateRMWUniform(false);
-		generateRangeUniform(false);
-	}
-	else
-	{
-		printf("SKEW\n");
-		generateKeysSkew();
-	}
-	fclose (fp_wl);
-	fclose (fp_bulk);
-	//out.close();
-	return 0;
-}
+//int main(int argc, char* argv[])
+//{
+//	if(argc > 2)
+//	{
+//		fprintf(stderr, "Usage:<workload_type>, <N>, <#gets>, <#puts>, <max_U or U_1,U_2,p_put,p_get>\n");
+//		// ./workload 0 1000000 100000 100000 10000000000
+//		// ./workload 1 1000000 10000 10000 100000 100000000 0.3 0.1
+//		N = atol(argv[2]);
+//		no_of_gets = atol(argv[3]);
+//		no_of_puts = atol(argv[4]);
+//		if(strcmp(argv[1], "0") == 0)
+//		{
+//			max_U = atol(argv[5]);
+//		}
+//		else
+//		{
+//			U1 = atol(argv[5]);
+//			U2 = atol(argv[6]);
+//			pput = atof(argv[7]);
+//			pget = atof(argv[8]);
+//		}
+//	}
+//	if(argc <= 1 || strcmp(argv[1], "0") == 0)
+//	{
+//		printf("UNIFORM\n");
+//		generateKeysUniform(true, false);
+//		generateGetUniform(false);
+//		generatePutUniform(false);
+//		generateRMWUniform(false);
+//		generateRangeUniform(false);
+//	}
+//	else
+//	{
+//		printf("SKEW\n");
+//		generateKeysSkew();
+//	}
+//	fclose (fp_wl);
+//	fclose (fp_bulk);
+//	//out.close();
+//	return 0;
+//}
