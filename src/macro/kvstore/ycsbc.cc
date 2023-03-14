@@ -58,7 +58,8 @@ int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
 // wakeup every interval second to poll,
 // when first started, the block height is start_block_height
 int StatusThread(string dbname, ycsbc::DB *db, double interval,
-                 int start_block_height) {
+                 int start_block_height,
+                 std::atomic_bool &stop) {
   int cur_block_height = start_block_height;
 
   long start_time;
@@ -73,7 +74,7 @@ int StatusThread(string dbname, ycsbc::DB *db, double interval,
   else
     confirm_duration = HL_CONFIRM_BLOCK_LENGTH;
 
-  while (true) {
+  while (!stop) {
     start_time = utils::time_now();
     int tip = db->GetTip();
     if (tip == -1)  // fail
@@ -148,15 +149,23 @@ int main(const int argc, const char *argv[]) {
                                   total_ops / num_threads, true, txrate));
   }
 
-  actual_ops.emplace_back(async(launch::async, StatusThread, props["dbname"],
-                                db, BLOCK_POLLING_INTERVAL, current_tip));
+  std::atomic_bool status_thread_stop(false); 
+  // StatusThread never ends :)
+  auto status_thread_async = async(launch::async, StatusThread, props["dbname"],
+                               db, BLOCK_POLLING_INTERVAL, current_tip, std::ref(status_thread_stop));
 
   int sum = 0;
   for (auto &n : actual_ops) {
     assert(n.valid());
     sum += n.get();
   }
-  cerr << "# Loading records:\t" << sum << endl;
+
+  // Notify the status thread
+  status_thread_stop = true;
+  status_thread_async.wait();
+
+  cout << "# Loading records:\t" << sum << endl;
+  return 0;
 }
 
 string ParseCommandLine(int argc, const char *argv[],
