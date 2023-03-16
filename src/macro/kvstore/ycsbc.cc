@@ -141,6 +141,7 @@ int main(const int argc, const char *argv[]) {
 
   utils::Timer<double> stat_timer;
 
+  cout << "Start data loading.." << endl;
   // Loads data
   vector<future<int>> actual_ops;
   int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
@@ -159,12 +160,25 @@ int main(const int argc, const char *argv[]) {
     assert(n.valid());
     sum += n.get();
   }
+  cout << "Finish data loading.. (# Loading records:\t" << sum << ")" << endl;
+
+  cout << "Start the workload..";
+  actual_ops.clear();
+  total_ops = stoi(props[ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY]);
+  for (int i = 0; i < num_threads; ++i) {
+    actual_ops.emplace_back(async(launch::async, DelegateClient, db, &wl,
+                                  total_ops / num_threads, false, txrate));
+  }
+  sum = 0;
+  for (auto &n : actual_ops) {
+    assert(n.valid());
+    sum += n.get();
+  }
+  cout << "Finish the workload (total ops:\t" << total_ops << ")" << endl;
 
   // Stop the status thread
   status_thread_stop = true;
   status_thread_async.wait();
-
-  cout << "# Loading records:\t" << sum << endl;
   return 0;
 }
 
