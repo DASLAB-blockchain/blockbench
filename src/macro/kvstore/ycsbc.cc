@@ -149,8 +149,8 @@ int main(const int argc, const char *argv[]) {
                                   total_ops / num_threads, true, txrate));
   }
 
+  // Launch the status_thread
   std::atomic_bool status_thread_stop(false); 
-  // StatusThread never ends :)
   auto status_thread_async = async(launch::async, StatusThread, props["dbname"],
                                db, BLOCK_POLLING_INTERVAL, current_tip, std::ref(status_thread_stop));
 
@@ -160,7 +160,7 @@ int main(const int argc, const char *argv[]) {
     sum += n.get();
   }
 
-  // Notify the status thread
+  // Stop the status thread
   status_thread_stop = true;
   status_thread_async.wait();
 
