@@ -22,12 +22,13 @@
 #include "db/hyperledger_db.h"
 using namespace std;
 
-const unsigned int BLOCK_POLLING_INTERVAL = 2;
+const unsigned int BLOCK_POLLING_INTERVAL = 1;
 const unsigned int CONFIRM_BLOCK_LENGTH = 5;
 const unsigned int HL_CONFIRM_BLOCK_LENGTH = 1;
 const unsigned int PARITY_CONFIRM_BLOCK_LENGTH = 1;
 
 std::unordered_map<string, double> pendingtx;
+std::vector<long> txnLatencyNs;
 // locking the pendingtx queue
 SpinLock txlock;
 
@@ -46,9 +47,14 @@ int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
   for (int i = 0; i < num_ops; ++i) {
     if (is_loading) {
       oks += client.DoInsert();
-      utils::sleep(tx_sleep_time);
     } else {
+      long txn_start_time = utils::time_now();
+      // Measure the transaction time in ns
       oks += client.DoTransaction();
+      long latency = utils::time_now() - txn_start_time;
+      txlock.lock();
+      txnLatencyNs.push_back(latency);
+      txlock.unlock();
     }
   }
   db->Close();
@@ -85,6 +91,7 @@ int StatusThread(string dbname, ycsbc::DB *db, double interval,
       cout << "polled block " << cur_block_height << " : " << txs.size()
            << " txs " << endl;
       cur_block_height++;
+      // This is a timestamp in ns
       long block_time = utils::time_now();
       txlock.lock();
       for (string tmp : txs) {
@@ -100,9 +107,12 @@ int StatusThread(string dbname, ycsbc::DB *db, double interval,
       }
       txlock.unlock();
     }
-    cout << "In the last " << interval << "s, tx count = " << txcount
-         << " latency = " << latency / 1000000000.0
-         << " outstanding request = " << pendingtx.size() << endl;
+
+    // Print average latency for different transactions
+    cout << "In the last " << interval << "s, finish_tx count = " << txcount << endl;
+
+    // Let's print the current transaction latency
+
     txcount = 0;
     latency = 0;
 
@@ -118,6 +128,15 @@ int StatusThread(string dbname, ycsbc::DB *db, double interval,
   }
   return 0;
 }
+
+void displayLatency() {
+  std::cout << "Finish in total " << txnLatencyNs.size() << " txns in the workload" << std::endl;
+  for (long latency: txnLatencyNs) {
+    std::cout << latency / 1e9 << " ";
+  }
+  std::cout << std::endl;
+}
+
 
 int main(const int argc, const char *argv[]) {
   utils::Properties props;
@@ -141,6 +160,11 @@ int main(const int argc, const char *argv[]) {
 
   utils::Timer<double> stat_timer;
 
+  // Launch the status_thread
+  std::atomic_bool status_thread_stop(false); 
+  auto status_thread_async = async(launch::async, StatusThread, props["dbname"],
+                               db, BLOCK_POLLING_INTERVAL, current_tip, std::ref(status_thread_stop));
+
   cout << "Start data loading.." << endl;
   // Loads data
   vector<future<int>> actual_ops;
@@ -150,31 +174,30 @@ int main(const int argc, const char *argv[]) {
                                   total_ops / num_threads, true, txrate));
   }
 
-  // Launch the status_thread
-  std::atomic_bool status_thread_stop(false); 
-  auto status_thread_async = async(launch::async, StatusThread, props["dbname"],
-                               db, BLOCK_POLLING_INTERVAL, current_tip, std::ref(status_thread_stop));
-
   int sum = 0;
   for (auto &n : actual_ops) {
     assert(n.valid());
     sum += n.get();
   }
-  cout << "Finish data loading.. (# Loading records:\t" << sum << ")" << endl;
+  assert (sum == total_ops);
+  cout << "Finish data loading.. (# Loading records: " << sum << ")" << endl;
 
-  cout << "Start the workload..";
+  cout << "Start the workload.." << endl;
   actual_ops.clear();
   total_ops = stoi(props[ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY]);
   for (int i = 0; i < num_threads; ++i) {
     actual_ops.emplace_back(async(launch::async, DelegateClient, db, &wl,
                                   total_ops / num_threads, false, txrate));
   }
+
   sum = 0;
   for (auto &n : actual_ops) {
     assert(n.valid());
     sum += n.get();
   }
   cout << "Finish the workload (total ops:\t" << total_ops << ")" << endl;
+
+  displayLatency();
 
   // Stop the status thread
   status_thread_stop = true;
