@@ -38,24 +38,36 @@ string ParseCommandLine(int argc, const char *argv[], utils::Properties &props);
 
 utils::Timer<double> stat_timer;
 
+int SingleClientTxn(ycsbc::Client &client, bool is_loading) {
+  int res = 0;
+    if (is_loading) {
+      res = client.DoInsert();
+    } else {
+      long txn_start_time = utils::time_now();
+      // Measure the transaction time in ns
+      res = client.DoTransaction();
+      long latency = utils::time_now() - txn_start_time;
+      txlock.lock();
+      txnLatencyNs.push_back(latency);
+      txlock.unlock();
+    }
+    return res;
+}
+
 int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
                    bool is_loading, const int txrate) {
   db->Init();
   ycsbc::Client client(*db, *wl);
   int oks = 0;
   double tx_sleep_time = 1.0 / txrate;
+  vector<future<int>> txns;
   for (int i = 0; i < num_ops; ++i) {
-    if (is_loading) {
-      oks += client.DoInsert();
-    } else {
-      long txn_start_time = utils::time_now();
-      // Measure the transaction time in ns
-      oks += client.DoTransaction();
-      long latency = utils::time_now() - txn_start_time;
-      txlock.lock();
-      txnLatencyNs.push_back(latency);
-      txlock.unlock();
-    }
+    txns.emplace_back(async(launch::async, SingleClientTxn, 
+                    std::ref(client), is_loading));
+    utils::sleep(tx_sleep_time);
+  }
+  for (auto &n: txns) {
+    oks += n.get();
   }
   db->Close();
   return oks;
