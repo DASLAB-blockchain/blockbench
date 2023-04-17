@@ -3,6 +3,7 @@
 namespace BBUtils {
 namespace FABV2Utils {
 
+const bool DEBUG = false;
 const std::string HEIGHT_END_POINT = "/height";
 const std::string BLOCK_END_POINT = "/block";
 const std::string INVOKE_END_POINT = "/invoke";
@@ -69,9 +70,12 @@ std::string submit_do_nothing_txn(const std::string &serviceAddr) {
 std::string submit_get_txn(const std::string &serviceAddr,
                            const std::string &key) {
   char buff[100 + key.length()];
-  std::sprintf(buff, "?function=%s", key.c_str());
+  std::sprintf(buff, "?function=read&args=%s", key.c_str());
   std::string requestArg(buff);
   auto r = RestClient::get(serviceAddr + QUERY_END_POINT + requestArg).body;
+  if (DEBUG) {
+    std::cout << "submit_get_txn: " << r << std::endl;
+  }
   if (get_json_field(r, "status") == "1") {
     std::cerr << "Fail to read with error " 
               << get_json_field(r, "message") << std::endl;
@@ -86,9 +90,13 @@ std::string submit_set_txn(const std::string &serviceAddr, const std::string &ke
   auto r = RestClient::post(serviceAddr + INVOKE_END_POINT, 
                                 REQUEST_HEADERS,
                                 writeReq).body;
+  if (DEBUG) {
+    std::cout << "submit_set_txn: " << r << std::endl;
+  }
   if (get_json_field(r, "status") == "1") {
     std::cerr << "Fail to write with error: " 
               << get_json_field(r, "message") << std::endl;
+    return "";
   } else {
     std::string txnID = get_json_field(r, "txnID");
     // std::cout << "TxnID: [" << txnID << "]" << std::endl;
