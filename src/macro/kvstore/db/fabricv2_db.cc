@@ -21,6 +21,17 @@ FabricV2DB::FabricV2DB(const string &endpoint, const string &wl_name)
 // read value indicated by a key
 int FabricV2DB::Read(const string &table, const string &key,
                         const vector<string> *fields, vector<KVPair> &result) {
+  std::string blkServiceAddr;
+  std::vector<std::string> txnServiceAddrs;
+  this->addresses(&blkServiceAddr, &txnServiceAddrs);
+  srand(time(NULL));
+  size_t i = std::rand() % txnServiceAddrs.size();
+  std::string txn_hash = (sctype_ == BBUtils::SmartContractType::DoNothing)
+                             ? submit_do_nothing_txn(txnServiceAddrs[i])
+                             : submit_get_txn(txnServiceAddrs[i], key);
+  txlock_->lock();
+  (*pendingtx_)[txn_hash] = utils::time_now();
+  txlock_->unlock();
   return DB::kOK;
 }
 
