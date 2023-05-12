@@ -177,6 +177,7 @@ int main(const int argc, const char *argv[]) {
   auto status_thread_async = async(launch::async, StatusThread, props["dbname"],
                                db, BLOCK_POLLING_INTERVAL, current_tip, std::ref(status_thread_stop));
 
+  long loading_start_time = utils::time_now();
   cout << "Start data loading.." << endl;
   // Loads data
   vector<future<int>> actual_ops;
@@ -192,9 +193,11 @@ int main(const int argc, const char *argv[]) {
     sum += n.get();
   }
   assert (sum == total_ops);
-  cout << "Finish data loading.. (# Loading records: " << sum << ")" << endl;
+  cout << "Finish data loading.. (# Loading records: " << sum << ") " 
+  << (utils::time_now() - loading_start_time) / 1e9 << " s"
+  << endl;
 
-  cout << "Start the workload.." << endl;
+  cout << "Start the workload at " << utils::time_now() << endl;
   actual_ops.clear();
   total_ops = stoi(props[ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY]);
   for (int i = 0; i < num_threads; ++i) {
@@ -208,6 +211,7 @@ int main(const int argc, const char *argv[]) {
     sum += n.get();
   }
   cout << "Finish the workload (total ops:\t" << total_ops << ")" << endl;
+  cout << "Valid ops:\t" << sum << endl;  
 
   displayLatency();
 
