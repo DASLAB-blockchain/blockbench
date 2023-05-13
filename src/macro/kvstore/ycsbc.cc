@@ -54,6 +54,20 @@ int SingleClientTxn(ycsbc::Client &client, bool is_loading) {
     return res;
 }
 
+// Used for data loading
+int DelegateClientLoading(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
+                   bool is_loading, const int txrate) {
+  db->Init();
+  ycsbc::Client client(*db, *wl);
+  int oks = 0;
+  for (int i = 0; i < num_ops; ++i) {
+    oks += SingleClientTxn(client, is_loading);
+  }
+  db->Close();
+  return oks;
+}
+
+// Used for executing workload
 int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
                    bool is_loading, const int txrate) {
   db->Init();
@@ -182,9 +196,10 @@ int main(const int argc, const char *argv[]) {
   // Loads data
   vector<future<int>> actual_ops;
   int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
-  for (int i = 0; i < num_threads; ++i) {
-    actual_ops.emplace_back(async(launch::async, DelegateClient, db, &wl,
-                                  total_ops / num_threads, true, txrate));
+  int LOAD_THREADS = 100;
+  for (int i = 0; i < LOAD_THREADS; ++i) {
+    actual_ops.emplace_back(async(launch::async, DelegateClientLoading, db, &wl,
+                                  total_ops / LOAD_THREADS, true, txrate));
   }
 
   int sum = 0;
