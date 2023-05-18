@@ -47,9 +47,12 @@ int SingleClientTxn(ycsbc::Client &client, bool is_loading) {
       // Measure the transaction time in ns
       res = client.DoTransaction();
       long latency = utils::time_now() - txn_start_time;
-      txlock.lock();
-      txnLatencyNs.push_back(latency);
-      txlock.unlock();
+      // Only append when success
+      if (res == 1) {
+        txlock.lock();
+        txnLatencyNs.push_back(latency);
+        txlock.unlock();
+      }
     }
     return res;
 }
@@ -114,8 +117,8 @@ int StatusThread(string dbname, ycsbc::DB *db, double interval,
 
     while (cur_block_height + confirm_duration <= tip) {
       vector<string> txs = db->PollTxn(cur_block_height);
-      cout << "polled block " << cur_block_height << " : " << txs.size()
-           << " txs " << endl;
+      // cout << "polled block " << cur_block_height << " : " << txs.size()
+          //  << " txs " << endl;
       cur_block_height++;
       // This is a timestamp in ns
       long block_time = utils::time_now();
@@ -135,7 +138,7 @@ int StatusThread(string dbname, ycsbc::DB *db, double interval,
     }
 
     // Print average latency for different transactions
-    cout << "In the last " << interval << "s, finish_tx count = " << txcount << endl;
+    // cout << "In the last " << interval << "s, finish_tx count = " << txcount << endl;
 
     // Let's print the current transaction latency
 

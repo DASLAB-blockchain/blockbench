@@ -58,7 +58,11 @@ int FabricV2DB::Update(const string &table, const string &key,
   txlock_->lock();
   (*pendingtx_)[txn_hash] = utils::time_now();
   txlock_->unlock();
-  return DB::kOK;
+  if (sctype_ != BBUtils::SmartContractType::DoNothing && txn_hash == "") {
+    return DB::kErrorOthers;
+  } else {
+    return DB::kOK;
+  }
 }
 
 // ignore table

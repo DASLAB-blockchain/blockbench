@@ -93,14 +93,13 @@ std::string submit_set_txn(const std::string &serviceAddr, const std::string &ke
   if (DEBUG) {
     std::cout << "submit_set_txn: " << r << std::endl;
   }
-  if (get_json_field(r, "status") == "1") {
+  if (get_json_field(r, "status") == "0") {
+    std::string txnID = get_json_field(r, "txnID");
+    return txnID;
+  } else {
     std::cerr << "Fail to write with error: " 
               << get_json_field(r, "message") << std::endl;
     return "";
-  } else {
-    std::string txnID = get_json_field(r, "txnID");
-    // std::cout << "TxnID: [" << txnID << "]" << std::endl;
-    return txnID;
   }
 }
 
