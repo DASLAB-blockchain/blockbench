@@ -28,7 +28,25 @@ const unsigned int HL_CONFIRM_BLOCK_LENGTH = 1;
 const unsigned int PARITY_CONFIRM_BLOCK_LENGTH = 1;
 
 std::unordered_map<string, double> pendingtx;
-std::vector<long> txnLatencyNs;
+
+// Define structure to maintain stat for each txn
+struct txn_stat {
+  long latencyNs;
+  int txnId;
+  txn_stat(long latencyNs, int txnId) {
+    this->latencyNs = latencyNs;
+    this->txnId = txnId;
+  };
+};
+
+// Sort by txn id
+struct txn_stat_cmp {
+  bool operator() (const txn_stat &l, const txn_stat &r) {
+    return l.txnId < r.txnId;
+  };
+};
+
+std::vector<txn_stat> txn_stat_list;
 // locking the pendingtx queue
 SpinLock txlock;
 
@@ -36,9 +54,8 @@ void UsageMessage(const char *command);
 bool StrStartWith(const char *str, const char *pre);
 string ParseCommandLine(int argc, const char *argv[], utils::Properties &props);
 
-utils::Timer<double> stat_timer;
 
-int SingleClientTxn(ycsbc::Client &client, bool is_loading) {
+int SingleClientTxn(ycsbc::Client &client, bool is_loading, int txnId) {
   int res = 0;
     if (is_loading) {
       res = client.DoInsert();
@@ -50,7 +67,7 @@ int SingleClientTxn(ycsbc::Client &client, bool is_loading) {
       // Only append when success
       if (res == 1) {
         txlock.lock();
-        txnLatencyNs.push_back(latency);
+        txn_stat_list.push_back(txn_stat(latency, txnId));
         txlock.unlock();
       }
     }
@@ -64,7 +81,7 @@ int DelegateClientLoading(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_
   ycsbc::Client client(*db, *wl);
   int oks = 0;
   for (int i = 0; i < num_ops; ++i) {
-    oks += SingleClientTxn(client, is_loading);
+    oks += SingleClientTxn(client, is_loading, i);
   }
   db->Close();
   return oks;
@@ -80,7 +97,7 @@ int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
   vector<future<int>> txns;
   for (int i = 0; i < num_ops; ++i) {
     txns.emplace_back(async(launch::async, SingleClientTxn, 
-                    std::ref(client), is_loading));
+                    std::ref(client), is_loading, i));
     utils::sleep(tx_sleep_time);
   }
   for (auto &n: txns) {
@@ -159,13 +176,21 @@ int StatusThread(string dbname, ycsbc::DB *db, double interval,
 }
 
 void displayLatency() {
-  std::cout << "Finish in total " << txnLatencyNs.size() << " txns in the workload" << std::endl;
-  for (long latency: txnLatencyNs) {
-    std::cout << latency / 1e9 << " ";
+  std::cout << "Finish in total " << txn_stat_list.size() << " txns in the workload" << std::endl;
+  for (auto stat: txn_stat_list) {
+    std::cout << stat.latencyNs / 1e9 << " ";
   }
   std::cout << std::endl;
 }
 
+void displaySuccessTxnId() {
+  std::cout << "Following as succeed txn Id" << std::endl;
+  sort(txn_stat_list.begin(), txn_stat_list.end(), txn_stat_cmp());
+  for (auto stat: txn_stat_list) {
+    std::cout << stat.txnId << " ";
+  }
+  std::cout << std::endl;
+}
 
 int main(const int argc, const char *argv[]) {
   utils::Properties props;
@@ -187,7 +212,6 @@ int main(const int argc, const char *argv[]) {
   const int num_threads = stoi(props.GetProperty("threadcount", "1"));
   const int txrate = stoi(props.GetProperty("txrate", "10"));
 
-  utils::Timer<double> stat_timer;
 
   // Launch the status_thread
   std::atomic_bool status_thread_stop(false); 
@@ -200,7 +224,8 @@ int main(const int argc, const char *argv[]) {
   vector<future<int>> actual_ops;
   int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
   // Workround to handle 1024 workload
-  int LOAD_THREADS = (total_ops % 64 == 0)? 64: 100;
+  int LOAD_THREADS = (total_ops % 100 == 0)? 100: 64;
+  std::cout << "Load threads: " <<  LOAD_THREADS << std::endl;
   for (int i = 0; i < LOAD_THREADS; ++i) {
       actual_ops.emplace_back(async(launch::async, DelegateClientLoading, db, &wl,
                                   total_ops / LOAD_THREADS, true, txrate));
@@ -232,6 +257,7 @@ int main(const int argc, const char *argv[]) {
   cout << "Finish the workload (total ops:\t" << total_ops << ")" << endl;
   cout << "Valid ops:\t" << sum << endl;  
 
+  displaySuccessTxnId();
   displayLatency();
 
   // Stop the status thread
