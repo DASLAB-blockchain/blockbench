@@ -241,6 +241,7 @@ int main(const int argc, const char *argv[]) {
   << (utils::time_now() - loading_start_time) / 1e9 << " s"
   << endl;
 
+  long workload_starting_time = utils::time_now();
   cout << "Start the workload at " << utils::time_now() << endl;
   actual_ops.clear();
   total_ops = stoi(props[ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY]);
@@ -254,7 +255,8 @@ int main(const int argc, const char *argv[]) {
     assert(n.valid());
     sum += n.get();
   }
-  cout << "Finish the workload (total ops:\t" << total_ops << ")" << endl;
+  cout << "Finish the workload (total ops:\t" << total_ops << ")" 
+  << (utils::time_now() - workload_starting_time) << " s" << endl;
   cout << "Valid ops:\t" << sum << endl;  
 
   displaySuccessTxnId();
