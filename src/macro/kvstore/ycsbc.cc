@@ -256,7 +256,7 @@ int main(const int argc, const char *argv[]) {
     sum += n.get();
   }
   cout << "Finish the workload (total ops:\t" << total_ops << ")" 
-  << (utils::time_now() - workload_starting_time) << " s" << endl;
+  << (utils::time_now() - workload_starting_time) / 1e9 << " s" << endl;
   cout << "Valid ops:\t" << sum << endl;  
 
   displaySuccessTxnId();
