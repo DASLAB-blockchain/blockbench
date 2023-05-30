@@ -39,6 +39,7 @@ int FabricV2DB::Read(const string &table, const string &key,
 // update value indicated by a key
 int FabricV2DB::Update(const string &table, const string &key,
                           vector<KVPair> &values) {
+  static int server_id = 0;
   string val = "";
   for (auto v : values) {
     val += v.first + "=" + v.second + " ";
@@ -49,8 +50,12 @@ int FabricV2DB::Update(const string &table, const string &key,
   std::string blkServiceAddr;
   std::vector<std::string> txnServiceAddrs;
   this->addresses(&blkServiceAddr, &txnServiceAddrs);
-  srand(time(NULL));
-  size_t i = std::rand() % txnServiceAddrs.size();
+
+  txlock_->lock();
+  server_id += 1;
+  txlock_->unlock();
+
+  size_t i = server_id % txnServiceAddrs.size();
 
   std::string txn_hash = (sctype_ == BBUtils::SmartContractType::DoNothing)
                              ? submit_do_nothing_txn(txnServiceAddrs[i])
