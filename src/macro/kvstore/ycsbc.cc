@@ -29,6 +29,9 @@ const unsigned int PARITY_CONFIRM_BLOCK_LENGTH = 1;
 
 std::unordered_map<string, double> pendingtx;
 
+bool robust_flag = false;
+vector<int> robust_thpt = {200, 500, 200};
+
 // Define structure to maintain stat for each txn
 struct txn_stat {
   long latencyNs;
@@ -93,12 +96,22 @@ int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
   db->Init();
   ycsbc::Client client(*db, *wl);
   int oks = 0;
+  static int last_thpt = -1;
   double tx_sleep_time = 1.0 / txrate;
   vector<future<int>> txns;
   for (int i = 0; i < num_ops; ++i) {
     txns.emplace_back(async(launch::async, SingleClientTxn, 
                     std::ref(client), is_loading, i));
-    utils::sleep(tx_sleep_time);
+    if (!robust_flag) {
+      utils::sleep(tx_sleep_time);
+    } else {
+      int robust_idx = i / (num_ops / robust_thpt.size());
+      if (robust_thpt[robust_idx] != last_thpt) {
+        std::cout << "At the " << i << "th txn, the throughput changed to " << robust_thpt[robust_idx] << " txn/s" << std::endl;
+        last_thpt = robust_thpt[robust_idx];
+      }
+      utils::sleep(1.0 / robust_thpt[robust_idx]);
+    }
   }
   for (auto &n: txns) {
     oks += n.get();
@@ -337,7 +350,12 @@ string ParseCommandLine(int argc, const char *argv[],
       }
       input.close();
       argindex++;
-    } else {
+    } else if (strcmp(argv[argindex], "-robust") == 0) {
+      argindex++;
+      // This mode is robust mode
+      robust_flag = true;
+    }
+    else {
       cout << "Unknown option '" << argv[argindex] << "'" << endl;
       exit(0);
     }
