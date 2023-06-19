@@ -30,7 +30,7 @@ const unsigned int PARITY_CONFIRM_BLOCK_LENGTH = 1;
 std::unordered_map<string, double> pendingtx;
 
 bool robust_flag = false;
-vector<int> robust_thpt = {200, 500, 200};
+vector<int> robust_thpt = {100, 200, 100};
 
 // Define structure to maintain stat for each txn
 struct txn_stat {
