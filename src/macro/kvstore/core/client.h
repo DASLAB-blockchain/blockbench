@@ -24,7 +24,8 @@ class Client {
   virtual bool DoTransaction();
   
   virtual ~Client() { }
-  
+
+  int last_operation_type_ = -1; 
  protected:
   
   virtual int TransactionRead();
@@ -46,7 +47,8 @@ inline bool Client::DoInsert() {
 
 inline bool Client::DoTransaction() {
   int status = -1;
-  switch (workload_.NextOperation()) {
+  last_operation_type_ = workload_.NextOperation();
+  switch (last_operation_type_) {
     case READ:
       status = TransactionRead();
       break;

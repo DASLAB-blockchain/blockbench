@@ -50,6 +50,9 @@ struct txn_stat_cmp {
 };
 
 std::vector<txn_stat> txn_stat_list;
+std::vector<txn_stat> write_txn_stat_list;
+std::vector<txn_stat> read_txn_stat_list;
+
 // locking the pendingtx queue
 SpinLock txlock;
 
@@ -71,6 +74,11 @@ int SingleClientTxn(ycsbc::Client &client, bool is_loading, int txnId) {
       if (res == 1) {
         txlock.lock();
         txn_stat_list.push_back(txn_stat(latency, txnId));
+        if (client.last_operation_type_ == ycsbc::READ) {
+          read_txn_stat_list.push_back(txn_stat(latency, txnId));
+        } else {
+          write_txn_stat_list.push_back(txn_stat(latency, txnId));
+        }
         txlock.unlock();
       }
     }
@@ -196,9 +204,24 @@ void displayLatency() {
   std::cout << std::endl;
 }
 
+void displayRWLatency() {
+  std::cout << "Read transaction latency list" << std::endl; ;
+  for (auto stat: read_txn_stat_list) {
+    std::cout << stat.latencyNs / 1e9 << " ";
+  }
+  std::cout << std::endl;
+  std::cout << "Write transaction latency list" << std::endl; ;
+  for (auto stat: write_txn_stat_list) {
+    std::cout << stat.latencyNs / 1e9 << " ";
+  }
+  std::cout << std::endl;
+}
+
 void displaySuccessTxnId() {
   std::cout << "Following as succeed txn Id" << std::endl;
   sort(txn_stat_list.begin(), txn_stat_list.end(), txn_stat_cmp());
+  sort(read_txn_stat_list.begin(), read_txn_stat_list.end(), txn_stat_cmp());
+  sort(write_txn_stat_list.begin(), write_txn_stat_list.end(), txn_stat_cmp());
   for (auto stat: txn_stat_list) {
     std::cout << stat.txnId << " ";
   }
@@ -274,6 +297,7 @@ int main(const int argc, const char *argv[]) {
 
   displaySuccessTxnId();
   displayLatency();
+  displayRWLatency();
 
   // Stop the status thread
   status_thread_stop = true;
